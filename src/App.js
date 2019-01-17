@@ -1,6 +1,6 @@
 import React, { Component } from "react";
 import GoogleMap from "google-map-react";
-import styled from "styled-components";
+import styled, { css } from "styled-components";
 import "./App.css";
 
 const defaultCenter = {
@@ -35,10 +35,21 @@ const MarkerPinIcon = ({ color = "red" }) => (
 const MarkerPinWrapper = styled.div`
   width: 20px;
   height: 20px;
+
+  position: relative;
+  z-index: 1;
+  transition: transform 0.2s;
+
+  ${props =>
+    props.hovered &&
+    css`
+      z-index: 2;
+      transform: scale(1.4);
+    `}
 `;
 
-const Marker = ({ text, color }) => (
-  <MarkerPinWrapper>
+const Marker = ({ text, color, $hover }) => (
+  <MarkerPinWrapper hovered={$hover === true}>
     <MarkerPinIcon color={color} />
   </MarkerPinWrapper>
 );
