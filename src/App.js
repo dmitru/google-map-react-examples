@@ -2,6 +2,7 @@ import React, { Component } from "react";
 import { lighten } from "polished";
 import GoogleMap from "google-map-react";
 import styled, { css } from "styled-components";
+import supercluster from "points-cluster";
 import "./App.css";
 
 const defaultCenter = {
@@ -9,19 +10,30 @@ const defaultCenter = {
   lng: 10
 };
 
+const defaultMapOptions = {
+  center: defaultCenter,
+  zoom: 12
+};
+
 function distanceToMouse({ x, y }, { x: mouseX, y: mouseY }) {
   return Math.sqrt((x - mouseX) * (x - mouseX) + (y - mouseY) * (y - mouseY));
 }
 
-const markerColors = ["yellow", "green", "red", "blue", "pink"];
+const markerColors = [
+  "#F2DD6E",
+  "#539987",
+  "#A53860",
+  "#1C77C3",
+  "#40BCD8",
+  "#F39237"
+];
 
-const markers = new Array(20).fill(null).map((value, index) => ({
+const markers = new Array(200).fill(null).map((value, index) => ({
   id: `${index}`,
   text: `Marker #${index}`,
   color: markerColors[Math.floor(markerColors.length * Math.random())],
-  lat:
-    defaultCenter.lat + Math.random() * 0.01 * (Math.random() > 0.5 ? 1 : -1),
-  lng: defaultCenter.lng + Math.random() * 0.01 * (Math.random() > 0.5 ? 1 : -1)
+  lat: defaultCenter.lat + Math.random() * 0.1 * (Math.random() > 0.5 ? 1 : -1),
+  lng: defaultCenter.lng + Math.random() * 0.1 * (Math.random() > 0.5 ? 1 : -1)
 }));
 
 const MarkerPinIcon = ({ color, hovered }) => (
@@ -67,6 +79,55 @@ const MarkerPinWrapper = styled.div`
   }
 `;
 
+const getClusterIconSize = count => {
+  if (count >= 200) {
+    return 80;
+  } else if (count >= 100) {
+    return 70;
+  } else if (count >= 50) {
+    return 60;
+  } else if (count >= 20) {
+    return 50;
+  } else if (count >= 10) {
+    return 40;
+  }
+  return 30;
+};
+
+const ClusterMarkerIcon = styled.div`
+  width: ${props => getClusterIconSize(props.count)}px;
+  height: ${props => getClusterIconSize(props.count)}px;
+
+  background: white;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 100%;
+  transition: all 0.3s;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  z-index: 1;
+  transform-origin: 0% 0%;
+  transform: translate(-50%, -50%);
+
+  ${props =>
+    props.hovered &&
+    css`
+      background: rgba(255, 255, 255, 0.9);
+      z-index: 2;
+      transform: scale(1.2) translate(-50%, -50%);
+    `}
+
+  font-size: ${props => (props.count > 100 ? "18px" : "20px")};
+`;
+
+const ClusterMarker = ({ points, hovered }) => (
+  <ClusterMarkerIcon count={points.length} hovered={hovered}>
+    {points.length}
+  </ClusterMarkerIcon>
+);
+
 const Marker = ({ size = 20, dragging, text, color = "red", hovered }) => (
   <MarkerPinWrapper size={size} scaleUp={hovered || dragging}>
     <MarkerPinIcon color={color} hovered={hovered || dragging} />
@@ -80,11 +141,39 @@ const GoogleMapWrapper = styled.div`
 
 class App extends Component {
   state = {
+    mapOptions: {
+      ...defaultMapOptions
+    },
+    clusters: [],
     isDraggingMarker: false,
     draggableMarkerLocationStart: undefined,
     draggableMarkerLocation: {
       ...defaultCenter
     }
+  };
+
+  getClusters = markers => {
+    const clusters = supercluster(markers, {
+      minZoom: 0,
+      maxZoom: 16,
+      radius: 60
+    });
+
+    return clusters(this.state.mapOptions);
+  };
+
+  createClusters = props => {
+    this.setState({
+      clusters: this.state.mapOptions.bounds
+        ? this.getClusters(props).map(({ wx, wy, numPoints, points }) => ({
+            lat: wy,
+            lng: wx,
+            numPoints,
+            id: `cluster_${numPoints}_${points[0].id}`,
+            points
+          }))
+        : []
+    });
   };
 
   handleChildMouseDown = (childKey, childProps, mouse) => {
@@ -142,44 +231,92 @@ class App extends Component {
     });
   };
 
+  handleMapChange = ({ center, zoom, bounds }) => {
+    this.setState(
+      {
+        mapOptions: {
+          center,
+          zoom,
+          bounds
+        }
+      },
+      () => {
+        // TODO: take markers from props
+        this.createClusters(markers);
+      }
+    );
+  };
+
+  handleChildClick = childId => {
+    const cluster = this.state.clusters.find(cluster => cluster.id === childId);
+
+    if (cluster && cluster.points.length > 1) {
+      this.map.panTo({ lat: cluster.lat, lng: cluster.lng });
+      const zoom = this.map.getZoom();
+      if (zoom < 16) {
+        this.map.setZoom(zoom + 1);
+      }
+    }
+  };
+
+  handleGoogleApiLoaded = ({ map, maps }) => {
+    this.map = map;
+  };
+
   render() {
     return (
       <div className="App">
         <GoogleMapWrapper>
           <GoogleMap
             draggable={!this.state.isDraggingMarker}
-            defaultZoom={14}
-            defaultCenter={defaultCenter}
+            defaultZoom={defaultMapOptions.zoom}
+            defaultCenter={defaultMapOptions.center}
+            onChange={this.handleMapChange}
             onChildMouseDown={this.handleChildMouseDown}
             onChildMouseMove={this.handleChildMouseMove}
             onChildMouseUp={this.handleChildMouseUp}
             onChildMouseEnter={this.handleChildMouseEnter}
             onChildMouseLeave={this.handleChildMouseLeave}
-            onChildClick={() => console.log("child click")}
+            onChildClick={this.handleChildClick}
             onClick={this.handleMapClick}
             hoverDistance={30}
             distanceToMouse={distanceToMouse}
+            yesIWantToUseGoogleMapApiInternals
+            onGoogleApiLoaded={this.handleGoogleApiLoaded}
           >
             <Marker
               key="draggable-marker"
+              lat={this.state.draggableMarkerLocation.lat}
+              lng={this.state.draggableMarkerLocation.lng}
               hovered={"draggable-marker" === this.state.hoveredMarkerKey}
               draggable
               dragging={this.state.isDraggingMarker}
               size={40}
-              lat={this.state.draggableMarkerLocation.lat}
-              lng={this.state.draggableMarkerLocation.lng}
             />
 
-            {markers.map(marker => (
-              <Marker
-                key={marker.id}
-                hovered={marker.id === this.state.hoveredMarkerKey}
-                color={marker.color}
-                text={marker.text}
-                lat={marker.lat}
-                lng={marker.lng}
-              />
-            ))}
+            {this.state.clusters.map(item => {
+              if (item.numPoints === 1) {
+                return (
+                  <Marker
+                    key={item.id}
+                    lat={item.points[0].lat}
+                    lng={item.points[0].lng}
+                    hovered={item.id === this.state.hoveredMarkerKey}
+                    color={item.points[0].color}
+                  />
+                );
+              }
+
+              return (
+                <ClusterMarker
+                  key={item.id}
+                  lat={item.lat}
+                  lng={item.lng}
+                  hovered={item.id === this.state.hoveredMarkerKey}
+                  points={item.points}
+                />
+              );
+            })}
           </GoogleMap>
         </GoogleMapWrapper>
       </div>
