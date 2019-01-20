@@ -1,4 +1,5 @@
 import React, { Component } from "react";
+import _ from "lodash";
 import { lighten } from "polished";
 import GoogleMap from "google-map-react";
 import { meters2ScreenPixels } from "google-map-react/utils";
@@ -29,7 +30,24 @@ const markerColors = [
   "#F39237"
 ];
 
-const markers = new Array(200).fill(null).map((value, index) => ({
+const generateRandomMarkersInArea = ({ bounds, count = 100 }) => {
+  const { ne, nw, se, sw } = bounds;
+  return _.range(count).map((value, index) => ({
+    id: `${index}`,
+    text: `Marker #${index}`,
+    color: markerColors[Math.floor(markerColors.length * Math.random())],
+    lat: _.random(se.lat, ne.lat, true),
+    lng: _.random(nw.lng, ne.lng, true)
+  }));
+};
+
+const generateRandomMarkersInAreaWithMockedServerDelay = async (...args) => {
+  // Wait some time to simulate server delay
+  await new Promise(resolve => setTimeout(resolve, 500));
+  return generateRandomMarkersInArea(...args);
+};
+
+const defaultMarkers = _.range(200).map((value, index) => ({
   id: `${index}`,
   text: `Marker #${index}`,
   color: markerColors[Math.floor(markerColors.length * Math.random())],
@@ -161,6 +179,7 @@ class App extends Component {
     mapOptions: {
       ...defaultMapOptions
     },
+    markers: defaultMarkers,
     clusters: [],
     isDraggingMarker: false,
     draggableMarkerLocationStart: undefined,
@@ -257,9 +276,17 @@ class App extends Component {
           bounds
         }
       },
-      () => {
-        // TODO: take markers from props
-        this.createClusters(markers);
+      async () => {
+        const markersCount =
+          4 * Math.pow(1 + 22 - this.state.mapOptions.zoom, 2);
+
+        const newMarkers = await generateRandomMarkersInAreaWithMockedServerDelay(
+          { bounds: this.state.mapOptions.bounds, count: markersCount }
+        );
+
+        this.setState({ markers: newMarkers }, () => {
+          this.createClusters(this.state.markers);
+        });
       }
     );
   };

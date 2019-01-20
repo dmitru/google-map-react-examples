@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "google-map-react": "^1.1.2",
+    "lodash": "^4.17.11",
     "points-cluster": "^0.1.4",
     "polished": "^2.3.3",
     "react": "^16.7.0",
