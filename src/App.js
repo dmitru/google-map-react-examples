@@ -301,7 +301,10 @@ class App extends Component {
                     key={item.id}
                     lat={item.points[0].lat}
                     lng={item.points[0].lng}
-                    hovered={item.id === this.state.hoveredMarkerKey}
+                    hovered={
+                      !this.state.isDraggingMarker &&
+                      item.id === this.state.hoveredMarkerKey
+                    }
                     color={item.points[0].color}
                   />
                 );
@@ -312,7 +315,10 @@ class App extends Component {
                   key={item.id}
                   lat={item.lat}
                   lng={item.lng}
-                  hovered={item.id === this.state.hoveredMarkerKey}
+                  hovered={
+                    !this.state.isDraggingMarker &&
+                    item.id === this.state.hoveredMarkerKey
+                  }
                   points={item.points}
                 />
               );
