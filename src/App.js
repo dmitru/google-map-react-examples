@@ -34,7 +34,9 @@ const generateRandomMarkersInArea = ({ bounds, count = 100 }) => {
   const { ne, nw, se, sw } = bounds;
   return _.range(count).map((value, index) => ({
     id: `${index}`,
-    text: `Marker #${index}`,
+    data: {
+      text: `Marker #${index}`
+    },
     color: markerColors[Math.floor(markerColors.length * Math.random())],
     lat: _.random(se.lat, ne.lat, true),
     lng: _.random(nw.lng, ne.lng, true)
@@ -49,7 +51,9 @@ const generateRandomMarkersInAreaWithMockedServerDelay = async (...args) => {
 
 const defaultMarkers = _.range(200).map((value, index) => ({
   id: `${index}`,
-  text: `Marker #${index}`,
+  data: {
+    text: `Marker #${index}`
+  },
   color: markerColors[Math.floor(markerColors.length * Math.random())],
   lat: defaultCenter.lat + Math.random() * 0.1 * (Math.random() > 0.5 ? 1 : -1),
   lng: defaultCenter.lng + Math.random() * 0.1 * (Math.random() > 0.5 ? 1 : -1)
@@ -99,11 +103,33 @@ const MarkerPinWrapper = styled.div`
   }
 `;
 
-const Marker = ({ size = 20, dragging, text, color = "red", hovered }) => (
-  <MarkerPinWrapper size={size} scaleUp={hovered || dragging}>
-    <MarkerPinIcon color={color} hovered={hovered || dragging} />
-  </MarkerPinWrapper>
-);
+const Marker = ({
+  id,
+  data = {},
+  size = 20,
+  dragging,
+  color = "red",
+  hovered,
+  showTooltip,
+  showTooltipPreview,
+  renderTooltip,
+  renderTooltipPreview
+}) => {
+  const tooltipPreview = renderTooltipPreview
+    ? renderTooltipPreview({ id, data })
+    : null;
+  const tooltipContent = renderTooltip ? renderTooltip({ id, data }) : null;
+
+  return (
+    <div>
+      {showTooltipPreview && !showTooltip && tooltipPreview}
+      {showTooltip && tooltipContent}
+      <MarkerPinWrapper size={size} scaleUp={hovered || dragging}>
+        <MarkerPinIcon color={color} hovered={hovered || dragging} />
+      </MarkerPinWrapper>
+    </div>
+  );
+};
 
 // TODO: refactor into a component
 const getClusterIconSize = count => {
@@ -174,6 +200,20 @@ const GoogleMapWrapper = styled.div`
   height: 100vh;
 `;
 
+const TooltipWrapper = styled.div`
+  position: absolute;
+  width: 200px;
+  background: red;
+  padding: 10px;
+`;
+
+const TooltipPreviewWrapper = styled.div`
+  position: absolute;
+  width: 200px;
+  background: white;
+  padding: 10px;
+`;
+
 class App extends Component {
   state = {
     mapOptions: {
@@ -182,6 +222,7 @@ class App extends Component {
     markers: defaultMarkers,
     clusters: [],
     isDraggingMarker: false,
+    markerIdWithTooltipShown: undefined,
     draggableMarkerLocationStart: undefined,
     draggableMarkerLocation: {
       ...defaultCenter
@@ -263,7 +304,8 @@ class App extends Component {
 
   handleMapClick = mouse => {
     this.setState({
-      draggableMarkerLocation: { lat: mouse.lat, lng: mouse.lng }
+      draggableMarkerLocation: { lat: mouse.lat, lng: mouse.lng },
+      markerIdWithTooltipShown: undefined
     });
   };
 
@@ -300,12 +342,28 @@ class App extends Component {
       if (zoom < 16) {
         this.map.setZoom(zoom + 1);
       }
+
+      this.setState({ markerIdWithTooltipShown: undefined });
+    } else if (cluster && cluster.points.length === 1) {
+      const marker = cluster.points[0];
+      this.setState({ markerIdWithTooltipShown: marker.id });
     }
   };
 
   handleGoogleApiLoaded = ({ map, maps }) => {
     this.map = map;
   };
+
+  renderTooltip = ({ id, data }) => (
+    <TooltipWrapper>
+      <h1>Tooltip content</h1>
+      {data.text}
+    </TooltipWrapper>
+  );
+
+  renderTooltipPreview = ({ id, data }) => (
+    <TooltipPreviewWrapper>Tooltip preview: {data.text}</TooltipPreviewWrapper>
+  );
 
   render() {
     return (
@@ -358,10 +416,21 @@ class App extends Component {
                     key={item.id}
                     lat={item.points[0].lat}
                     lng={item.points[0].lng}
+                    id={item.points[0].id}
                     hovered={
                       !this.state.isDraggingMarker &&
                       item.id === this.state.hoveredMarkerKey
                     }
+                    showTooltip={
+                      item.points[0].id === this.state.markerIdWithTooltipShown
+                    }
+                    showTooltipPreview={
+                      !this.state.isDraggingMarker &&
+                      item.id === this.state.hoveredMarkerKey
+                    }
+                    renderTooltip={this.renderTooltip}
+                    renderTooltipPreview={this.renderTooltipPreview}
+                    data={item.data}
                     color={item.points[0].color}
                   />
                 );
