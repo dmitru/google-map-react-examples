@@ -1,6 +1,7 @@
 import React, { Component } from "react";
 import { lighten } from "polished";
 import GoogleMap from "google-map-react";
+import { meters2ScreenPixels } from "google-map-react/utils";
 import styled, { css } from "styled-components";
 import supercluster from "points-cluster";
 import "./App.css";
@@ -36,6 +37,7 @@ const markers = new Array(200).fill(null).map((value, index) => ({
   lng: defaultCenter.lng + Math.random() * 0.1 * (Math.random() > 0.5 ? 1 : -1)
 }));
 
+// TODO: refactor into a component
 const MarkerPinIcon = ({ color, hovered }) => (
   <svg version="1.1" id="Layer_1" x="0px" y="0px" viewBox="0 0 365 560">
     <g>
@@ -79,6 +81,13 @@ const MarkerPinWrapper = styled.div`
   }
 `;
 
+const Marker = ({ size = 20, dragging, text, color = "red", hovered }) => (
+  <MarkerPinWrapper size={size} scaleUp={hovered || dragging}>
+    <MarkerPinIcon color={color} hovered={hovered || dragging} />
+  </MarkerPinWrapper>
+);
+
+// TODO: refactor into a component
 const getClusterIconSize = count => {
   if (count >= 200) {
     return 80;
@@ -128,11 +137,19 @@ const ClusterMarker = ({ points, hovered }) => (
   </ClusterMarkerIcon>
 );
 
-const Marker = ({ size = 20, dragging, text, color = "red", hovered }) => (
-  <MarkerPinWrapper size={size} scaleUp={hovered || dragging}>
-    <MarkerPinIcon color={color} hovered={hovered || dragging} />
-  </MarkerPinWrapper>
-);
+// TODO: refactor into a component
+const Circle = styled.div`
+  width: ${props => props.size}px;
+  height: ${props => props.size}px;
+
+  background: ${props => props.color || "rgba(255, 0, 0, 0.3)"};
+  border-radius: 100%;
+  transition: all 0.3s;
+
+  z-index: 0;
+  transform-origin: 0% 0%;
+  transform: translate(-50%, -50%);
+`;
 
 const GoogleMapWrapper = styled.div`
   width: 100%;
@@ -292,6 +309,19 @@ class App extends Component {
               draggable
               dragging={this.state.isDraggingMarker}
               size={40}
+            />
+
+            <Circle
+              key="draggable-marker-circle"
+              lat={this.state.draggableMarkerLocation.lat}
+              lng={this.state.draggableMarkerLocation.lng}
+              size={
+                meters2ScreenPixels(
+                  10000,
+                  this.state.draggableMarkerLocation,
+                  this.state.mapOptions.zoom
+                ).w
+              }
             />
 
             {this.state.clusters.map(item => {
