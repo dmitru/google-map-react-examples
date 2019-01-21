@@ -110,20 +110,16 @@ const Marker = ({
   dragging,
   color = "red",
   hovered,
-  showTooltip,
-  showTooltipPreview,
-  renderTooltip,
-  renderTooltipPreview
+  selected,
+  renderTooltip
 }) => {
-  const tooltipPreview = renderTooltipPreview
-    ? renderTooltipPreview({ id, data })
+  const tooltip = renderTooltip
+    ? renderTooltip({ id, data, hovered, selected })
     : null;
-  const tooltipContent = renderTooltip ? renderTooltip({ id, data }) : null;
 
   return (
     <div>
-      {showTooltipPreview && !showTooltip && tooltipPreview}
-      {showTooltip && tooltipContent}
+      {tooltip}
       <MarkerPinWrapper size={size} scaleUp={hovered || dragging}>
         <MarkerPinIcon color={color} hovered={hovered || dragging} />
       </MarkerPinWrapper>
@@ -203,15 +199,16 @@ const GoogleMapWrapper = styled.div`
 const TooltipWrapper = styled.div`
   position: absolute;
   width: 200px;
-  background: red;
-  padding: 10px;
-`;
-
-const TooltipPreviewWrapper = styled.div`
-  position: absolute;
-  width: 200px;
   background: white;
   padding: 10px;
+
+  opacity: 0;
+  transition: opacity 0.2s;
+
+  z-index: 2000;
+
+  ${props => props.show && "opacity: 1.0;"}
+  ${props => props.pinned && "background: white;"}
 `;
 
 class App extends Component {
@@ -303,10 +300,13 @@ class App extends Component {
   };
 
   handleMapClick = mouse => {
-    this.setState({
-      draggableMarkerLocation: { lat: mouse.lat, lng: mouse.lng },
-      markerIdWithTooltipShown: undefined
-    });
+    if (this.state.markerIdWithTooltipShown) {
+      this.setState({ markerIdWithTooltipShown: undefined });
+    } else {
+      this.setState({
+        draggableMarkerLocation: { lat: mouse.lat, lng: mouse.lng }
+      });
+    }
   };
 
   handleMapChange = ({ center, zoom, bounds }) => {
@@ -346,7 +346,12 @@ class App extends Component {
       this.setState({ markerIdWithTooltipShown: undefined });
     } else if (cluster && cluster.points.length === 1) {
       const marker = cluster.points[0];
-      this.setState({ markerIdWithTooltipShown: marker.id });
+
+      if (marker.id === this.state.markerIdWithTooltipShown) {
+        this.setState({ markerIdWithTooltipShown: undefined });
+      } else {
+        this.setState({ markerIdWithTooltipShown: marker.id });
+      }
     }
   };
 
@@ -354,15 +359,11 @@ class App extends Component {
     this.map = map;
   };
 
-  renderTooltip = ({ id, data }) => (
-    <TooltipWrapper>
+  renderTooltip = ({ id, data, hovered, selected }) => (
+    <TooltipWrapper show={hovered || selected} pinned={selected}>
       <h1>Tooltip content</h1>
       {data.text}
     </TooltipWrapper>
-  );
-
-  renderTooltipPreview = ({ id, data }) => (
-    <TooltipPreviewWrapper>Tooltip preview: {data.text}</TooltipPreviewWrapper>
   );
 
   render() {
@@ -421,15 +422,10 @@ class App extends Component {
                       !this.state.isDraggingMarker &&
                       item.id === this.state.hoveredMarkerKey
                     }
-                    showTooltip={
+                    renderTooltip={this.renderTooltip}
+                    selected={
                       item.points[0].id === this.state.markerIdWithTooltipShown
                     }
-                    showTooltipPreview={
-                      !this.state.isDraggingMarker &&
-                      item.id === this.state.hoveredMarkerKey
-                    }
-                    renderTooltip={this.renderTooltip}
-                    renderTooltipPreview={this.renderTooltipPreview}
                     data={item.data}
                     color={item.points[0].color}
                   />
