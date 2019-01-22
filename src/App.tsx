@@ -6,8 +6,12 @@ import GoogleMap from "google-map-react";
 import { meters2ScreenPixels } from "google-map-react/utils";
 import styled, { css } from "styled-components";
 // @ts-ignore
+import { Tooltip } from "react-tippy";
+import "react-tippy/dist/tippy.css";
+// @ts-ignore
 import supercluster from "points-cluster";
 import "./App.css";
+import ReactDOM from "react-dom";
 
 const defaultCenter = {
   lat: 10,
@@ -91,7 +95,6 @@ const defaultMarkers = _.range(200).map((value, index) => ({
 interface MarkerPinIconProps {
   color: string;
   hovered: boolean;
-  withHole?: boolean;
   label?: string;
 }
 
@@ -101,8 +104,7 @@ const MarkerPinIcon: React.SFC<MarkerPinIconProps> = ({ color, hovered }) => (
     <g>
       <path
         fill={hovered ? lighten(0.3, color) : color}
-        d={`M182.9,551.7c0,0.1,0.2,0.3,0.2,0.3S358.3,283,358.3,194.6c0-130.1-88.8-186.7-175.4-186.9
-		C96.3,7.9,7.5,64.5,7.5,194.6c0,88.4,175.3,357.4,175.3,357.4S182.9,551.7,182.9,551.7z M122.2,187.2c0-33.6,27.2-60.8`}
+        d={`M 182.9 551.7 C 182.9 551.8000000000001 183.1 552 183.1 552 C 183.1 552 358.3 283 358.3 194.6 C 358.3 64.5 269.5 7.900000000000006 182.9 7.699999999999989 C 96.3 7.9 7.5 64.5 7.5 194.6 C 7.5 283 182.8 552 182.8 552 L 182.9 551.7 Z`}
       />
     </g>
   </svg>
@@ -157,7 +159,6 @@ const MarkerPinWrapper = styled("div")<{ size: number; scaleUp: boolean }>`
 interface RenderTooltipProps {
   id: string;
   data: any;
-  hovered?: boolean;
   selected?: boolean;
 }
 
@@ -168,6 +169,7 @@ interface MapChildProps {
 }
 
 interface MarkerProps extends MapChildProps {
+  innerRef?: any;
   id: string;
   data?: any;
   size?: number;
@@ -181,7 +183,10 @@ interface MarkerProps extends MapChildProps {
 }
 
 const Marker: React.SFC<MarkerProps> = ({
+  lat,
+  lng,
   id,
+  innerRef,
   data = {},
   size = 20,
   dragging,
@@ -189,17 +194,15 @@ const Marker: React.SFC<MarkerProps> = ({
   selected,
   PinIcon,
   renderTooltip,
-  children
+  children,
+  ...otherProps
 }) => {
-  const tooltip = renderTooltip
-    ? renderTooltip({ id, data, hovered, selected })
-    : null;
-
   const PinIconOrDefault = PinIcon || MarkerPinIcon;
+  // @ts-ignore
+  const dimensions = otherProps.$getDimensions(otherProps.$dimensionKey);
 
-  return (
-    <div>
-      {tooltip}
+  const marker = (
+    <div ref={innerRef}>
       <MarkerPinWrapper size={size} scaleUp={hovered || dragging || false}>
         <PinIconOrDefault
           color={data.color}
@@ -208,6 +211,29 @@ const Marker: React.SFC<MarkerProps> = ({
         {children}
       </MarkerPinWrapper>
     </div>
+  );
+
+  if (!renderTooltip) {
+    return marker;
+  }
+
+  return (
+    <Tooltip
+      key={`${dimensions.x}:${dimensions.y}`}
+      arrow
+      multiple
+      distance={30}
+      open={selected || hovered ? true : false}
+      interactive
+      theme="light"
+      html={renderTooltip({
+        id,
+        data,
+        selected
+      })}
+    >
+      {marker}
+    </Tooltip>
   );
 };
 
@@ -294,19 +320,20 @@ const Circle = styled("div")<CircleProps>`
   transform: translate(-50%, -50%);
 `;
 
-const GoogleMapWrapper = styled.div`
-  width: 100%;
+const Wrapper = styled.div`
+  width: 100vh;
   height: 100vh;
 `;
 
+const GoogleMapWrapper = styled.div`
+  width: 100%;
+  height: 100%;
+`;
+
 const TooltipWrapper = styled("div")<{ show: boolean; pinned: boolean }>`
-  position: absolute;
   width: 200px;
   background: white;
   padding: 10px;
-
-  border-radius: 10px;
-  border: 1px solid gray;
 
   h1 {
     margin-top: 0;
@@ -354,7 +381,7 @@ class App extends Component<{}, AppState> {
     mapOptions: {
       ...defaultMapOptions
     },
-    markers: defaultMarkers,
+    markers: [],
     clusters: [],
 
     isDraggingMarker: false,
@@ -369,7 +396,7 @@ class App extends Component<{}, AppState> {
     const clusters = supercluster(markers, {
       minZoom: 0,
       maxZoom: 16,
-      radius: 60
+      radius: 20
     });
 
     return clusters(this.state.mapOptions);
@@ -476,16 +503,17 @@ class App extends Component<{}, AppState> {
         }
       },
       async () => {
-        const markersCount =
-          4 * Math.pow(1 + 22 - this.state.mapOptions.zoom, 2);
+        if (this.state.markers.length === 0) {
+          const markersCount = 20;
 
-        const newMarkers = await generateRandomMarkersInAreaWithMockedServerDelay(
-          { bounds: this.state.mapOptions.bounds!, count: markersCount }
-        );
+          const newMarkers = await generateRandomMarkersInAreaWithMockedServerDelay(
+            { bounds: this.state.mapOptions.bounds!, count: markersCount }
+          );
 
-        this.setState({ markers: newMarkers }, () => {
-          this.createClusters(this.state.markers);
-        });
+          this.setState({ markers: newMarkers }, () => {
+            this.createClusters(this.state.markers);
+          });
+        }
       }
     );
   };
@@ -516,106 +544,116 @@ class App extends Component<{}, AppState> {
     this.map = map;
   };
 
-  renderTooltip = ({ data, hovered, selected }: RenderTooltipProps) => (
-    <TooltipWrapper
-      show={hovered || selected || false}
-      pinned={selected || false}
-    >
-      <h1>Tooltip content</h1>
-      {data.text}
-    </TooltipWrapper>
-  );
+  renderTooltip = ({ data, selected }: RenderTooltipProps) => {
+    return (
+      <TooltipWrapper show pinned={selected || false}>
+        <h1>Tooltip content</h1>
+        {data.text}
+      </TooltipWrapper>
+    );
+  };
+
+  mapWrapperRef: React.RefObject<HTMLDivElement> = React.createRef();
 
   render() {
+    // @ts-ignore
+    window.cur = this.mapWrapperRef.current;
     return (
       <div className="App">
-        <GoogleMapWrapper>
-          <GoogleMap
-            draggable={!this.state.isDraggingMarker}
-            defaultZoom={defaultMapOptions.zoom}
-            defaultCenter={defaultMapOptions.center}
-            onChange={this.handleMapChange}
-            onChildMouseDown={this.handleChildMouseDown}
-            onChildMouseMove={this.handleChildMouseMove}
-            onChildMouseUp={this.handleChildMouseUp}
-            onChildMouseEnter={this.handleChildMouseEnter}
-            onChildMouseLeave={this.handleChildMouseLeave}
-            onChildClick={this.handleChildClick}
-            onClick={this.handleMapClick}
-            hoverDistance={30}
-            distanceToMouse={distanceToMouse}
-            yesIWantToUseGoogleMapApiInternals
-            onGoogleApiLoaded={this.handleGoogleApiLoaded}
-          >
-            {!!this.state.draggableMarkerLocation && (
-              <Marker
-                id="draggable-marker"
-                key="draggable-marker"
-                lat={this.state.draggableMarkerLocation.lat}
-                lng={this.state.draggableMarkerLocation.lng}
-                hovered={"draggable-marker" === this.state.hoveredChildId}
-                draggable
-                data={{
-                  color: "red"
-                }}
-                dragging={this.state.isDraggingMarker}
-                size={40}
-                PinIcon={MarkerPinWithHoleIcon}
-              />
-            )}
-            {!!this.state.draggableMarkerLocation && (
-              <Circle
-                key="draggable-marker-circle"
-                lat={this.state.draggableMarkerLocation.lat}
-                lng={this.state.draggableMarkerLocation.lng}
-                size={
-                  meters2ScreenPixels(
-                    10000,
-                    this.state.draggableMarkerLocation,
-                    this.state.mapOptions.zoom
-                  ).w
-                }
-              />
-            )}
+        <div id="destination" />
+        <Wrapper>
+          <GoogleMapWrapper ref={this.mapWrapperRef}>
+            <GoogleMap
+              draggable={!this.state.isDraggingMarker}
+              defaultZoom={defaultMapOptions.zoom}
+              defaultCenter={defaultMapOptions.center}
+              onChange={this.handleMapChange}
+              onChildMouseDown={this.handleChildMouseDown}
+              onChildMouseMove={this.handleChildMouseMove}
+              onChildMouseUp={this.handleChildMouseUp}
+              onChildMouseEnter={this.handleChildMouseEnter}
+              onChildMouseLeave={this.handleChildMouseLeave}
+              onChildClick={this.handleChildClick}
+              onClick={this.handleMapClick}
+              hoverDistance={30}
+              distanceToMouse={distanceToMouse}
+              yesIWantToUseGoogleMapApiInternals
+              onGoogleApiLoaded={this.handleGoogleApiLoaded}
+            >
+              {!!this.state.draggableMarkerLocation && (
+                <Marker
+                  id="draggable-marker"
+                  key="draggable-marker"
+                  lat={this.state.draggableMarkerLocation.lat}
+                  lng={this.state.draggableMarkerLocation.lng}
+                  hovered={"draggable-marker" === this.state.hoveredChildId}
+                  draggable
+                  data={{
+                    color: "red"
+                  }}
+                  dragging={this.state.isDraggingMarker}
+                  size={40}
+                  PinIcon={MarkerPinWithHoleIcon}
+                />
+              )}
+              {!!this.state.draggableMarkerLocation && (
+                <Circle
+                  key="draggable-marker-circle"
+                  lat={this.state.draggableMarkerLocation.lat}
+                  lng={this.state.draggableMarkerLocation.lng}
+                  size={
+                    meters2ScreenPixels(
+                      10000,
+                      this.state.draggableMarkerLocation,
+                      this.state.mapOptions.zoom
+                    ).w
+                  }
+                />
+              )}
 
-            {this.state.clusters.map(cluster => {
-              if (cluster.markers.length === 1) {
-                const marker = cluster.markers[0];
+              {this.state.clusters.map(cluster => {
+                if (cluster.markers.length === 1) {
+                  const marker = cluster.markers[0];
+
+                  const isMarkerHovered =
+                    !this.state.isDraggingMarker &&
+                    cluster.id === this.state.hoveredChildId;
+                  const isMarkerSelected =
+                    marker.id === this.state.markerIdWithTooltipShown;
+
+                  return (
+                    // @ts-ignore
+                    <Marker
+                      key={cluster.id}
+                      id={marker.id}
+                      lat={marker.lat}
+                      lng={marker.lng}
+                      hovered={isMarkerHovered}
+                      selected={isMarkerSelected}
+                      data={marker.data}
+                      renderTooltip={this.renderTooltip}
+                    >
+                      <MarkerLabel>{marker.data.label}</MarkerLabel>
+                    </Marker>
+                  );
+                }
 
                 return (
-                  <Marker
+                  <ClusterMarker
                     key={cluster.id}
-                    id={marker.id}
-                    lat={marker.lat}
-                    lng={marker.lng}
+                    lat={cluster.lat}
+                    lng={cluster.lng}
                     hovered={
                       !this.state.isDraggingMarker &&
                       cluster.id === this.state.hoveredChildId
                     }
-                    renderTooltip={this.renderTooltip}
-                    selected={marker.id === this.state.markerIdWithTooltipShown}
-                    data={marker.data}
-                  >
-                    <MarkerLabel>{marker.data.label}</MarkerLabel>
-                  </Marker>
+                    points={cluster.markers}
+                  />
                 );
-              }
-
-              return (
-                <ClusterMarker
-                  key={cluster.id}
-                  lat={cluster.lat}
-                  lng={cluster.lng}
-                  hovered={
-                    !this.state.isDraggingMarker &&
-                    cluster.id === this.state.hoveredChildId
-                  }
-                  points={cluster.markers}
-                />
-              );
-            })}
-          </GoogleMap>
-        </GoogleMapWrapper>
+              })}
+            </GoogleMap>
+          </GoogleMapWrapper>
+        </Wrapper>
       </div>
     );
   }
