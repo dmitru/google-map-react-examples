@@ -1,4 +1,29 @@
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+# What is it? 
+
+This is an example project of using [google-map-react](https://github.com/google-map-react/google-map-react) to implement some common UX interactions with Google Maps. It's based on CRA and is using TypeScript.
+
+## Demo
+![Demo CountPages alpha](https://raw.githubusercontent.com/dmitru/google-map-react-examples/master/demo.gif)]
+
+## What's inside?
+
+The project implements the following UX patterns:
+
+- draggable pin marker
+- drawing circles at a given location with a given radius
+- clustering of closely positioned markers
+- marker tooltips
+- auto-positioning of marker tooltips (powered by [react-popper](https://github.com/FezVrasta/react-popper))
+
+
+## Motivation
+
+I found [google-map-react](https://github.com/google-map-react/google-map-react) a great help in creating customizable Google Maps UX. Unfortunately, to me the official examples were too complicated and opinionated, so I came up with a (hopefully simpler!) example project which would implement common UX interactions with a map. 
+
+I do believe it might help other people to get started with [google-map-react](https://github.com/google-map-react/google-map-react). However, I'm not planning to actively maintain this project.
+
+
+# This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
 ## Available Scripts
 
