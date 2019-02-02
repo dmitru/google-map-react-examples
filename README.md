@@ -1,6 +1,6 @@
 # What is it? 
 
-This is an example project of using [google-map-react](https://github.com/google-map-react/google-map-react) to implement some common UX interactions with Google Maps. It's based on CRA and is using TypeScript.
+This is a kitchensink example project of using [google-map-react](https://github.com/google-map-react/google-map-react) to implement some common UX interactions with Google Maps. It's based on CRA and is using TypeScript.
 
 ## Demo
 ![Demo CountPages alpha](https://raw.githubusercontent.com/dmitru/google-map-react-examples/master/demo.gif)]
