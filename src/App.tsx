@@ -82,16 +82,6 @@ const generateRandomMarkersInAreaWithMockedServerDelay: (
   return generateRandomMarkersInArea(arg);
 };
 
-const defaultMarkers = _.range(200).map((value, index) => ({
-  id: `${index}`,
-  data: {
-    text: `Marker #${index}`
-  },
-  color: markerColors[Math.floor(markerColors.length * Math.random())],
-  lat: defaultCenter.lat + Math.random() * 0.1 * (Math.random() > 0.5 ? 1 : -1),
-  lng: defaultCenter.lng + Math.random() * 0.1 * (Math.random() > 0.5 ? 1 : -1)
-}));
-
 interface MarkerPinIconProps {
   color: string;
   hovered: boolean;
@@ -396,7 +386,7 @@ class App extends Component<{}, AppState> {
     const clusters = supercluster(markers, {
       minZoom: 0,
       maxZoom: 16,
-      radius: 20
+      radius: 80
     });
 
     return clusters(this.state.mapOptions);
@@ -504,7 +494,7 @@ class App extends Component<{}, AppState> {
       },
       async () => {
         if (this.state.markers.length === 0) {
-          const markersCount = 20;
+          const markersCount = 200;
 
           const newMarkers = await generateRandomMarkersInAreaWithMockedServerDelay(
             { bounds: this.state.mapOptions.bounds!, count: markersCount }
@@ -513,6 +503,8 @@ class App extends Component<{}, AppState> {
           this.setState({ markers: newMarkers }, () => {
             this.createClusters(this.state.markers);
           });
+        } else {
+          this.createClusters(this.state.markers);
         }
       }
     );
