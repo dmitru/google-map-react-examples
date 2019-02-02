@@ -16,7 +16,6 @@ import {
 import { Circle } from "./circle";
 import { ClusterMarker } from "./cluster-marker";
 
-import "./App.css";
 import { Tooltip } from "./tooltip";
 import { distanceToMouse } from "../utils";
 
